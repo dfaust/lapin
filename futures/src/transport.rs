@@ -201,11 +201,13 @@ impl<T> Future for AMQPTransportConnector<T>
     let mut transport = self.transport.take().unwrap();
 
     //we might have received a frame before here
+    trace!("transport.send_frames()");
     transport.send_frames();
 
     debug!("conn state: {:?}", transport.conn.state);
     if transport.conn.state == ConnectionState::Connected {
       debug!("already connected");
+      trace!("return Ok(Async::Ready(transport))");
       return Ok(Async::Ready(transport))
     }
 
@@ -215,8 +217,10 @@ impl<T> Future for AMQPTransportConnector<T>
       Ok(Async::Ready(t)) => t,
       Ok(Async::NotReady) => {
         trace!("upstream poll gave NotReady");
+        trace!("transport.poll_children()");
         transport.poll_children();
         self.transport = Some(transport);
+        trace!("return Ok(Async::NotReady)");
         return Ok(Async::NotReady);
       },
       Err(e) => {
@@ -229,19 +233,25 @@ impl<T> Future for AMQPTransportConnector<T>
       Some(frame) => {
         trace!("got frame: {:?}", frame);
         transport.conn.handle_frame(frame);
+        trace!("transport.send_frames()");
         transport.send_frames();
+        trace!("transport.poll_complete()");
         transport.upstream.poll_complete();
         if transport.conn.state == ConnectionState::Connected {
+          trace!("return Ok(Async::Ready(transport))");
           return Ok(Async::Ready(transport))
         } else {
+          trace!("transport.poll_children()");
           transport.poll_children();
           self.transport = Some(transport);
+          trace!("return Ok(Async::NotReady)");
           return Ok(Async::NotReady)
         }
       },
       e => {
         error!("did not get a frame? -> {:?}", e);
         self.transport = Some(transport);
+        trace!("return Ok(Async::NotReady)");
         return Ok(Async::NotReady)
       }
     }
