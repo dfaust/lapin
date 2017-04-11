@@ -195,7 +195,9 @@ impl<T> Future for AMQPTransportConnector<T>
 
     //we might have received a frame before here
     while let Some(f) = transport.conn.next_frame() {
+      trace!("transport.upstream.start_send(f)");
       transport.upstream.start_send(f);
+      trace!("transport.upstream.poll_complete()");
       transport.upstream.poll_complete();
     }
 
@@ -227,22 +229,30 @@ impl<T> Future for AMQPTransportConnector<T>
         trace!("got frame: {:?}", frame);
         transport.conn.handle_frame(frame);
         while let Some(f) = transport.conn.next_frame() {
+          trace!("transport.upstream.start_send(f)");
           transport.upstream.start_send(f);
+          trace!("transport.upstream.poll_complete()");
           transport.upstream.poll_complete();
         }
+        trace!("transport.upstream.poll_complete()");
         transport.upstream.poll_complete();
         if transport.conn.state == ConnectionState::Connected {
+          trace!("return Ok(Async::Ready(transport))");
           return Ok(Async::Ready(transport))
         } else {
+          trace!("transport.upstream.poll()");
           transport.upstream.poll();
+          trace!("transport.heartbeat.poll()");
           transport.heartbeat.poll();
           self.transport = Some(transport);
+          trace!("return Ok(Async::NotReady)");
           return Ok(Async::NotReady)
         }
       },
       e => {
         error!("did not get a frame? -> {:?}", e);
         self.transport = Some(transport);
+        trace!("return Ok(Async::NotReady)");
         return Ok(Async::NotReady)
       }
     }
